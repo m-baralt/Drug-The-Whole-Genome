@@ -3,10 +3,10 @@ echo "First argument: $1"
 
 MOL_PATH="mols.lmdb" # path to the molecule file
 POCKET_PATH="pocket.lmdb" # path to the pocket file
-POCKET_PATH="./data/targets/D2R/pocket.lmdb"
-num_folds=8
+POCKET_PATH="./data/targets/NET/pocket.lmdb"
+num_folds=6
 use_cache=True
-save_path="D2R.txt"
+save_path="NET.txt"
 
 
 

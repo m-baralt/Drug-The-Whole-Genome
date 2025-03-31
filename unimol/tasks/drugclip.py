@@ -1637,16 +1637,19 @@ class DrugCLIP(UnicoreTask):
             # 6 folds
             ckpts = [f"./data/model_weights/6_folds/fold_{i}.pt" for i in range(6)]
 
-            caches = [f"./data/encoded_mol_embs/new_6_folds/fold{i}.pkl" for i in range(6)]
+            caches = [f"./data/encoded_mol_embs/6_folds/fold{i}.pkl" for i in range(6)]
         
         elif n_folds==8:
 
             ckpts = [f"./data/model_weights/8_folds/fold_{i}.pt" for i in range(8)]
 
-            caches = [f"./data/encoded_mol_embs/new_8_folds/fold{i}.pkl" for i in range(8)]
+            caches = [f"./data/encoded_mol_embs/8_folds/fold{i}.pkl" for i in range(8)]
 
 
         res_list = []
+
+        pocket_data_path = pocket_path
+
 
         for fold, ckpt in enumerate(ckpts):
 
@@ -1666,7 +1669,7 @@ class DrugCLIP(UnicoreTask):
                 mol_data_path = "/drug/DrugCLIP_chemdata_v2024/DrugCLIP_mols_v2024.lmdb"
                 mol_data_path = "/drug/encoding_mols/chemdiv_1640k.lmdb"
 
-                pocket_data_path = pocket_path
+                
                 
                 mol_dataset = self.load_mols_dataset(mol_data_path, "atoms", "coordinates")
                 num_data = len(mol_dataset)
@@ -1730,6 +1733,7 @@ class DrugCLIP(UnicoreTask):
                 pocket_emb = pocket_emb / pocket_emb.norm(dim=-1, keepdim=True)
                 pocket_emb = pocket_emb.detach().cpu().numpy()
                 pocket_reps.append(pocket_emb)
+            print(len(pocket_reps))
             pocket_reps = np.concatenate(pocket_reps, axis=0)
             # change reps to fp32
             mol_reps = mol_reps.astype(np.float32)
