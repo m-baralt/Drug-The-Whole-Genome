@@ -1201,7 +1201,7 @@ class DrugCLIP(UnicoreTask):
             mol_reps = np.concatenate(mol_reps, axis=0)
             labels = np.array(labels, dtype=np.int32)
             # generate pocket data
-            #data_path = "./data/DUD-E/" + target + "/AF2_RealPocket_BFN/pockets.lmdb"
+            #data_path = "./data/DUD-E/" + target + "/RealProtein_RealPocket/pockets.lmdb"
             data_path = "./data/DUD-E/" + target + "/pocket.lmdb"
             if not os.path.exists(data_path):
                 return None
@@ -1650,22 +1650,7 @@ class DrugCLIP(UnicoreTask):
 
         for fold, ckpt in enumerate(ckpts):
 
-            state = checkpoint_utils.load_checkpoint_to_cpu(ckpt)
-            model.load_state_dict(state["model"], strict=False)
-
             
-            mol_data_path = "/drug/DrugCLIP_chemdata_v2024/DrugCLIP_mols_v2024.lmdb"
-            mol_data_path = "/drug/encoding_mols/chemdiv_1640k.lmdb"
-
-            pocket_data_path = pocket_path
-            
-            mol_dataset = self.load_mols_dataset(mol_data_path, "atoms", "coordinates")
-            num_data = len(mol_dataset)
-            bsz=64
-            mol_reps = []
-            mol_names = []
-            labels = []
-            mol_ids_subsets = []
             
             # generate mol data
 
@@ -1674,6 +1659,22 @@ class DrugCLIP(UnicoreTask):
                 with open(mol_cache_path, "rb") as f:
                     mol_reps, mol_names = pickle.load(f)
             else:
+                state = checkpoint_utils.load_checkpoint_to_cpu(ckpt)
+                model.load_state_dict(state["model"], strict=False)
+
+                
+                mol_data_path = "/drug/DrugCLIP_chemdata_v2024/DrugCLIP_mols_v2024.lmdb"
+                mol_data_path = "/drug/encoding_mols/chemdiv_1640k.lmdb"
+
+                pocket_data_path = pocket_path
+                
+                mol_dataset = self.load_mols_dataset(mol_data_path, "atoms", "coordinates")
+                num_data = len(mol_dataset)
+                bsz=64
+                mol_reps = []
+                mol_names = []
+                labels = []
+                mol_ids_subsets = []
                 mol_data = torch.utils.data.DataLoader(mol_dataset, batch_size=bsz, collate_fn=mol_dataset.collater)
                 for _, sample in enumerate(tqdm(mol_data)):
                     sample = unicore.utils.move_to_cuda(sample)
