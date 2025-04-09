@@ -1436,17 +1436,13 @@ class DrugCLIP(UnicoreTask):
 
     
 
-    def encode_mols_multi_folds(self, model, mol_path, save_dir, **kwargs):
+    def encode_mols_multi_folds(self, model, mol_path, save_dir, use_cuda, **kwargs):
 
         # 6 folds
-        ckpts = [
-            "/drug/save_dir/affinity/2023-12-06_20-39-17/checkpoint_best.pt",
-            "/drug/save_dir/affinity/2023-12-06_23-23-23/checkpoint_best.pt",
-            "/drug/save_dir/affinity/2023-12-07_10-25-59/checkpoint_best.pt",
-            "/drug/save_dir/affinity/2023-12-07_14-46-18/checkpoint_best.pt",
-            "/drug/save_dir/affinity/2023-12-07_22-30-21/checkpoint_best.pt",
-            "/drug/save_dir/affinity/2023-12-08_11-21-09/checkpoint_best.pt",
-        ]
+        
+        ckpts = [f"./data/model_weights/6_folds/fold_{i}.pt" for i in range(6)]
+
+        
 
 
         #ckpts = ckpts[:1]
@@ -1474,7 +1470,7 @@ class DrugCLIP(UnicoreTask):
 
             
             mol_dataset = self.load_mols_dataset_dtwg(mol_data_path, "atoms", "coordinates")
-            bsz=64
+            bsz=1024
             mol_reps = []
             mol_names = []
             mol_ids_subsets = []
@@ -1485,8 +1481,9 @@ class DrugCLIP(UnicoreTask):
             
             mol_data = torch.utils.data.DataLoader(mol_dataset, batch_size=bsz, collate_fn=mol_dataset.collater)
             for _, sample in enumerate(tqdm(mol_data)):
-   
-                sample = unicore.utils.move_to_cuda(sample)
+                if use_cuda:
+                    sample = unicore.utils.move_to_cuda(sample)
+                
                 dist = sample["net_input"]["mol_src_distance"]
                 et = sample["net_input"]["mol_src_edge_type"]
                 st = sample["net_input"]["mol_src_tokens"]
@@ -1506,10 +1503,11 @@ class DrugCLIP(UnicoreTask):
                 mol_emb = mol_emb / mol_emb.norm(dim=-1, keepdim=True)
                 mol_emb = mol_emb.detach().cpu().numpy()
                 #mol_reps.append(mol_emb)
-                index = st.squeeze(0) > 3
-                cur_mol_reps = mol_outputs[0]
-                cur_mol_reps = cur_mol_reps[:, index, :]
-                mol_reps.append(cur_mol_reps.detach().cpu().numpy())
+                #index = st.squeeze(0) > 3
+                #cur_mol_reps = mol_outputs[0]
+                #cur_mol_reps = cur_mol_reps[:, index, :]
+                mol_reps.append(mol_emb)
+                #print(mol_emb.detach().cpu().numpy().shape)
                 mol_names.extend(sample["smi_name"])
 
                 #ids = sample["id"]
@@ -1517,11 +1515,15 @@ class DrugCLIP(UnicoreTask):
                 #ids_subsets = [ids[i] + ";" + subsets[i] for i in range(len(ids))]
                 #mol_ids_subsets.extend(ids_subsets)
             mol_reps = np.concatenate(mol_reps, axis=0)
+            # add a dimension to mol_reps
+            mol_reps = np.expand_dims(mol_reps, axis=1)
             mol_reps_all.append(mol_reps)
         
-        mol_reps_all = np.concatenate(mol_reps_all, axis=0)
+        # concate
 
-        mol_reps_all = mol_reps_all.transpose(1, 0, 2)
+        mol_reps_all = np.concatenate(mol_reps_all, axis=1)
+
+        mol_names = np.array(mol_names)
 
         
 
@@ -1530,20 +1532,13 @@ class DrugCLIP(UnicoreTask):
 
         # save the reps to npy file
         print(mol_reps_all.shape)
-        np.save(save_dir, mol_reps_all)
+        np.save(os.path.join(save_dir,"mol_reps.npy"), mol_reps_all)
 
     
     def encode_pockets_multi_folds(self, model, pocket_dir, pocket_path, **kwargs):
         print(pocket_path)
         # 6 folds
-        ckpts = [
-            "/drug/save_dir/affinity/2023-12-06_20-39-17/checkpoint_best.pt",
-            "/drug/save_dir/affinity/2023-12-06_23-23-23/checkpoint_best.pt",
-            "/drug/save_dir/affinity/2023-12-07_10-25-59/checkpoint_best.pt",
-            "/drug/save_dir/affinity/2023-12-07_14-46-18/checkpoint_best.pt",
-            "/drug/save_dir/affinity/2023-12-07_22-30-21/checkpoint_best.pt",
-            "/drug/save_dir/affinity/2023-12-08_11-21-09/checkpoint_best.pt",
-        ]
+        ckpts = [f"./data/model_weights/6_folds/fold_{i}.pt" for i in range(6)]
 
 
         #ckpts = ckpts[:1]

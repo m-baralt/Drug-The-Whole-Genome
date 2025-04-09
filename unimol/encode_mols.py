@@ -62,7 +62,7 @@ def main(args):
     #names, scores = task.retrieve_mols(model, args.mol_path, args.pocket_path, args.emb_dir, 10000)
 
     #task.encode_mols_multi_folds(model, "/drug/DrugCLIP_chemdata_v2024/DrugCLIP_mols_v2024.lmdb", "/drug/tmp_save/")
-    task.encode_mols_multi_folds(model, args.mol_path, args.save_dir)
+    task.encode_mols_multi_folds(model, args.mol_path, args.save_dir, use_cuda)
 
 
 def cli_main():
