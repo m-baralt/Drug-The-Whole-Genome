@@ -1436,7 +1436,7 @@ class DrugCLIP(UnicoreTask):
 
     
 
-    def encode_mols_multi_folds(self, model, mol_path, save_dir, use_cuda, **kwargs):
+    def encode_mols_multi_folds(self, model, batch_size, mol_path, save_dir, use_cuda, **kwargs):
 
         # 6 folds
         
@@ -1460,6 +1460,8 @@ class DrugCLIP(UnicoreTask):
 
         for fold, ckpt in enumerate(ckpts):
 
+            
+
             state = checkpoint_utils.load_checkpoint_to_cpu(ckpt)
             model.load_state_dict(state["model"], strict=False)
 
@@ -1470,7 +1472,7 @@ class DrugCLIP(UnicoreTask):
 
             
             mol_dataset = self.load_mols_dataset_dtwg(mol_data_path, "atoms", "coordinates")
-            bsz=1024
+            bsz=batch_size
             mol_reps = []
             mol_names = []
             mol_ids_subsets = []
