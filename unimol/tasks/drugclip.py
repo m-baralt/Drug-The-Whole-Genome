@@ -503,6 +503,7 @@ class DrugCLIP(UnicoreTask):
                 end = len(keys)
             if start >= len(keys):
                 raise ValueError("start should be less than len(keys) = {}".format(len(keys)))
+            logger.info("chunk dataset, start: {}, end: {}".format(start, end))
             dataset.set_split("chunk", keys[start:end], deduplicate=False, temporary=True)
             dataset.set_default_split("chunk")
             keydataset = LMDBKeyDataset(data_path)
@@ -1455,7 +1456,7 @@ class DrugCLIP(UnicoreTask):
 
     
 
-    def encode_mols_multi_folds(self, model, batch_size, mol_path, save_dir, use_cuda, dataset_type=None, write_npy=True, write_h5=True, **kwargs):
+    def encode_mols_multi_folds(self, model, batch_size, mol_path, save_dir, use_cuda, dataset_type=None, write_npy=True, write_h5=True, flush_interval=60, **kwargs):
 
         # 6 folds
         
@@ -1524,8 +1525,8 @@ class DrugCLIP(UnicoreTask):
                     if skip_batch > 0 and write_npy:
                         mol_reps.append(dset[:num_written, fold*128:(fold+1)*128])
                     print("Already written {} mols in fold {}, will skip {} batches".format(num_written, fold, skip_batch))
-            
-            mol_data = torch.utils.data.DataLoader(mol_dataset, batch_size=bsz, collate_fn=mol_dataset.collater, num_workers=4)
+            logger.info(f"dataloader workers: {self.args.num_workers}")
+            mol_data = torch.utils.data.DataLoader(mol_dataset, batch_size=bsz, collate_fn=mol_dataset.collater, num_workers=self.args.num_workers)
             for batch, sample in enumerate(tqdm(mol_data)):
                 if batch < skip_batch:
                     continue
@@ -1554,7 +1555,8 @@ class DrugCLIP(UnicoreTask):
                     assert len(sample["key"]) == len(mol_emb)
                     dset[batch*bsz:batch*bsz+len(mol_emb), fold*128:(fold+1)*128] = mol_emb
                     kset[batch*bsz:batch*bsz+len(sample["key"])] = sample["key"]
-                    hdf5.flush()
+                    if batch % flush_interval == 0:
+                        hdf5.flush()
                 #mol_reps.append(mol_emb)
                 #index = st.squeeze(0) > 3
                 #cur_mol_reps = mol_outputs[0]
@@ -1574,6 +1576,7 @@ class DrugCLIP(UnicoreTask):
                 mol_reps = np.expand_dims(mol_reps, axis=1)
                 mol_reps_all.append(mol_reps)
             if write_h5:
+                hdf5.flush()
                 hdf5.close()
         
         # concate
@@ -1613,7 +1616,8 @@ class DrugCLIP(UnicoreTask):
 
             # generate pocket data
             pocket_dataset = self.load_pockets_dataset(pocket_path)
-            pocket_data = torch.utils.data.DataLoader(pocket_dataset, batch_size=32, collate_fn=pocket_dataset.collater)
+            logger.info(f"dataloader workers: {self.args.num_workers}")
+            pocket_data = torch.utils.data.DataLoader(pocket_dataset, batch_size=32, collate_fn=pocket_dataset.collater, num_workers=self.args.num_workers)
             pocket_reps = []
             pocket_names = []
             for _, sample in enumerate(tqdm(pocket_data)):
