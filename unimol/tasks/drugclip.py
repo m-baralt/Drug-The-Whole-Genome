@@ -506,14 +506,14 @@ class DrugCLIP(UnicoreTask):
             logger.info("chunk dataset, start: {}, end: {}".format(start, end))
             dataset.set_split("chunk", keys[start:end], deduplicate=False, temporary=True)
             dataset.set_default_split("chunk")
-            keydataset = LMDBKeyDataset(data_path)
-            keydataset.set_split("chunk", keys[start:end], deduplicate=False, temporary=True)
-            keydataset.set_default_split("chunk")
+            # keydataset = LMDBKeyDataset(data_path)
+            # keydataset.set_split("chunk", keys[start:end], deduplicate=False, temporary=True)
+            # keydataset.set_default_split("chunk")
         else:
             if kwargs.get("start", 0) != 0 or kwargs.get("end", None) is not None:
                 logger.info("chuck is not supported when using default lmdb, ignore start and end")
             dataset = LMDBDataset(data_path)
-            keydataset = KeyDataset(dataset, "smi")
+            # keydataset = KeyDataset(dataset, "smiles")
         
         dataset = AffinityMolDataset(
             dataset,
@@ -573,8 +573,8 @@ class DrugCLIP(UnicoreTask):
             #"target":  RawArrayDataset(label_dataset),
             "mol_len": RawArrayDataset(len_dataset),
         }
-        if keydataset is not None:
-            nest_dataset["key"] = RawArrayDataset(keydataset)
+        # if keydataset is not None:
+        #     nest_dataset["key"] = RawArrayDataset(keydataset)
         return NestedDictionaryDataset(nest_dataset)
 
 
@@ -1500,84 +1500,88 @@ class DrugCLIP(UnicoreTask):
 
             
             mol_dataset = self.load_mols_dataset_dtwg(mol_data_path, "atoms", "coordinates", dataset_type=dataset_type, **kwargs)
+            collate_fn=mol_dataset.collater
             bsz=batch_size
             mol_reps = []
             mol_names = []
             mol_ids_subsets = []
             
             # generate mol data
-            skip_batch = 0
-            if write_h5:
-                hdf5 = h5py.File(os.path.join(save_dir,f"mol_reps{kwargs.get('start', '')}{kwargs.get('end', '')}.h5"), "a")
-                dset = hdf5.require_dataset("mol_reps", shape=(len(mol_dataset), 768), dtype=np.float32, chunks=True, compression="gzip")
-                kset = hdf5.require_dataset("fold{}".format(fold), shape=(len(mol_dataset),), dtype=h5py.string_dtype(encoding='utf-8'), chunks=True, compression="gzip")
-                written_mask = np.array([s != b'' for s in kset[:]])  # 注意是 byte string
-                num_written = np.sum(written_mask)
-                if num_written == len(mol_dataset):
-                    if write_npy:
-                        mol_reps = dset[:, fold*128:(fold+1)*128]
-                        mol_reps = np.expand_dims(mol_reps, axis=1)
-                        mol_reps_all.append(mol_reps)
-                    print("Already written fold {} mols".format(fold))
-                    continue
-                elif num_written > 0:
-                    skip_batch = num_written // bsz
-                    if skip_batch > 0 and write_npy:
-                        mol_reps.append(dset[:num_written, fold*128:(fold+1)*128])
-                    print("Already written {} mols in fold {}, will skip {} batches".format(num_written, fold, skip_batch))
-            logger.info(f"dataloader workers: {self.args.num_workers}")
-            mol_data = torch.utils.data.DataLoader(mol_dataset, batch_size=bsz, collate_fn=mol_dataset.collater, num_workers=self.args.num_workers)
-            for batch, sample in enumerate(tqdm(mol_data)):
-                if batch < skip_batch:
-                    continue
-                if use_cuda:
-                    sample = unicore.utils.move_to_cuda(sample)
-                
-                dist = sample["net_input"]["mol_src_distance"]
-                et = sample["net_input"]["mol_src_edge_type"]
-                st = sample["net_input"]["mol_src_tokens"]
-                mol_padding_mask = st.eq(model.mol_model.padding_idx)
-                mol_x = model.mol_model.embed_tokens(st)
-                n_node = dist.size(-1)
-                gbf_feature = model.mol_model.gbf(dist, et)
-                gbf_result = model.mol_model.gbf_proj(gbf_feature)
-                graph_attn_bias = gbf_result
-                graph_attn_bias = graph_attn_bias.permute(0, 3, 1, 2).contiguous()
-                graph_attn_bias = graph_attn_bias.view(-1, n_node, n_node)
-                mol_outputs = model.mol_model.encoder(
-                    mol_x, padding_mask=mol_padding_mask, attn_mask=graph_attn_bias
-                )
-                mol_encoder_rep = mol_outputs[0][:,0,:]
-                mol_emb = model.mol_project(mol_encoder_rep)
-                mol_emb = mol_emb / mol_emb.norm(dim=-1, keepdim=True)
-                mol_emb = mol_emb.detach().cpu().numpy()
+            try:
                 if write_h5:
-                    assert len(sample["key"]) == len(mol_emb)
-                    dset[batch*bsz:batch*bsz+len(mol_emb), fold*128:(fold+1)*128] = mol_emb
-                    kset[batch*bsz:batch*bsz+len(sample["key"])] = sample["key"]
-                    if batch % flush_interval == 0:
-                        hdf5.flush()
-                #mol_reps.append(mol_emb)
-                #index = st.squeeze(0) > 3
-                #cur_mol_reps = mol_outputs[0]
-                #cur_mol_reps = cur_mol_reps[:, index, :]
-                if write_npy:
-                    mol_reps.append(mol_emb)
-                #print(mol_emb.detach().cpu().numpy().shape)
-                # mol_names.extend(sample["smi_name"])
+                    hdf5 = h5py.File(os.path.join(save_dir,f"mol_reps{kwargs.get('start', '')}{kwargs.get('end', '')}.h5"), "a")
+                    dset = hdf5.require_dataset("mol_reps", shape=(len(mol_dataset), 768), dtype=np.float32, chunks=True)
+                    kset = hdf5.require_dataset("fold{}".format(fold), shape=(len(mol_dataset),), dtype=np.bool_, chunks=True, compression="lzf")
+                    written_mask = kset[:]
+                    num_written = np.sum(written_mask)
+                    if num_written == len(mol_dataset):
+                        if write_npy:
+                            mol_reps = dset[:, fold*128:(fold+1)*128]
+                            mol_reps = np.expand_dims(mol_reps, axis=1)
+                            mol_reps_all.append(mol_reps)
+                        print("Already written fold {} mols".format(fold))
+                        continue
+                    elif num_written > 0:
+                        mol_dataset = torch.utils.data.Subset(mol_dataset, range(num_written, len(mol_dataset)))
+                        if write_npy:
+                            mol_reps.append(dset[:num_written, fold*128:(fold+1)*128])
+                        print("Already written {} mols in fold {}, will skip them".format(num_written, fold))
+                logger.info(f"dataloader workers: {self.args.num_workers}")
+                mol_data = torch.utils.data.DataLoader(mol_dataset, batch_size=bsz, collate_fn=collate_fn, num_workers=self.args.num_workers)
+                for batch, sample in enumerate(tqdm(mol_data)):
+                    if use_cuda:
+                        sample = unicore.utils.move_to_cuda(sample)
+                    
+                    dist = sample["net_input"]["mol_src_distance"]
+                    et = sample["net_input"]["mol_src_edge_type"]
+                    st = sample["net_input"]["mol_src_tokens"]
+                    mol_padding_mask = st.eq(model.mol_model.padding_idx)
+                    mol_x = model.mol_model.embed_tokens(st)
+                    n_node = dist.size(-1)
+                    gbf_feature = model.mol_model.gbf(dist, et)
+                    gbf_result = model.mol_model.gbf_proj(gbf_feature)
+                    graph_attn_bias = gbf_result
+                    graph_attn_bias = graph_attn_bias.permute(0, 3, 1, 2).contiguous()
+                    graph_attn_bias = graph_attn_bias.view(-1, n_node, n_node)
+                    mol_outputs = model.mol_model.encoder(
+                        mol_x, padding_mask=mol_padding_mask, attn_mask=graph_attn_bias
+                    )
+                    mol_encoder_rep = mol_outputs[0][:,0,:]
+                    mol_emb = model.mol_project(mol_encoder_rep)
+                    mol_emb = mol_emb / mol_emb.norm(dim=-1, keepdim=True)
+                    mol_emb = mol_emb.detach().cpu().numpy()
+                    if write_h5:
+                        dset[num_written+batch*bsz:num_written+batch*bsz+len(mol_emb), fold*128:(fold+1)*128] = mol_emb
+                        kset[num_written+batch*bsz:num_written+batch*bsz+len(mol_emb)] = 1
+                        if batch % flush_interval == 0:
+                            hdf5.flush()
+                    #mol_reps.append(mol_emb)
+                    #index = st.squeeze(0) > 3
+                    #cur_mol_reps = mol_outputs[0]
+                    #cur_mol_reps = cur_mol_reps[:, index, :]
+                    if write_npy:
+                        mol_reps.append(mol_emb)
+                    #print(mol_emb.detach().cpu().numpy().shape)
+                    # mol_names.extend(sample["smi_name"])
 
-                #ids = sample["id"]
-                #subsets = sample["subset"]
-                #ids_subsets = [ids[i] + ";" + subsets[i] for i in range(len(ids))]
-                #mol_ids_subsets.extend(ids_subsets)
-            if write_npy:
-                mol_reps = np.concatenate(mol_reps, axis=0)
-                # add a dimension to mol_reps
-                mol_reps = np.expand_dims(mol_reps, axis=1)
-                mol_reps_all.append(mol_reps)
-            if write_h5:
-                hdf5.flush()
-                hdf5.close()
+                    #ids = sample["id"]
+                    #subsets = sample["subset"]
+                    #ids_subsets = [ids[i] + ";" + subsets[i] for i in range(len(ids))]
+                    #mol_ids_subsets.extend(ids_subsets)
+                if write_npy:
+                    mol_reps = np.concatenate(mol_reps, axis=0)
+                    # add a dimension to mol_reps
+                    mol_reps = np.expand_dims(mol_reps, axis=1)
+                    mol_reps_all.append(mol_reps)
+            except Exception as e:
+                print(e)
+                if write_h5:
+                    hdf5.close()
+                raise e
+            finally:
+                if write_h5:
+                    hdf5.flush()
+                    hdf5.close()
         
         # concate
         if write_npy:
