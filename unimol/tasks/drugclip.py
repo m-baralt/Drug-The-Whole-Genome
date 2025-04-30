@@ -911,7 +911,7 @@ class DrugCLIP(UnicoreTask):
         data_path = "./data/lit_pcba/" + name + "/mols.lmdb"
         mol_dataset = self.load_mols_dataset(data_path, "atoms", "coordinates")
         num_data = len(mol_dataset)
-        bsz=64
+        bsz=512
         #print(num_data//bsz)
         mol_reps = []
         mol_names = []
@@ -979,11 +979,11 @@ class DrugCLIP(UnicoreTask):
 
         res = pocket_reps @ mol_reps.T
 
-        medians = np.median(res, axis=1, keepdims=True)
-            # get mad for each row
-        mads = np.median(np.abs(res - medians), axis=1, keepdims=True)
-        # get z score
-        res = 0.6745 * (res - medians) / (mads + 1e-6)
+        # medians = np.median(res, axis=1, keepdims=True)
+        #     # get mad for each row
+        # mads = np.median(np.abs(res - medians), axis=1, keepdims=True)
+        # # get z score
+        # res = 0.6745 * (res - medians) / (mads + 1e-6)
         
         res_single = res.max(axis=0)
         auc, bedroc, ef_list, re_list = cal_metrics(labels, res_single, 80.5)
@@ -995,7 +995,7 @@ class DrugCLIP(UnicoreTask):
 
     def test_pcba(self, model, use_folds=True, **kwargs):
 
-        
+        use_folds = False
         targets = os.listdir("./data/lit_pcba/")
 
         #print(targets)
@@ -1047,7 +1047,7 @@ class DrugCLIP(UnicoreTask):
             return None
         mol_dataset = self.load_mols_dataset(data_path, "atoms", "coordinates")
         num_data = len(mol_dataset)
-        bsz=512
+        bsz=64
         print(num_data//bsz)
         mol_reps = []
         mol_names = []
@@ -1086,6 +1086,7 @@ class DrugCLIP(UnicoreTask):
         labels = np.array(labels, dtype=np.int32)
         # generate pocket data
         data_path = "./data/DUD-E/" + target + "/pocket.lmdb"
+        #data_path = f"/drug/schrodinger_DUD-E/{target}/Holo_RealPocket_GenPack/pocket.lmdb"
         if not os.path.exists(data_path):
             return None
         pocket_dataset = self.load_pockets_dataset(data_path)
@@ -1276,6 +1277,7 @@ class DrugCLIP(UnicoreTask):
 
 
         targets = os.listdir("./data/DUD-E")
+        #targets = os.listdir("/drug/schrodinger_DUD-E/")
         auc_list = []
         bedroc_list = []
         ef_list = []
@@ -1298,6 +1300,7 @@ class DrugCLIP(UnicoreTask):
         for i,target in enumerate(targets):
             print(i)
             #try:
+            use_folds = False
             if use_folds:
                 res = self.test_dude_target_ensemble(target, model)
             else:
@@ -1307,6 +1310,7 @@ class DrugCLIP(UnicoreTask):
             if res is None:
                 continue
             auc, bedroc, ef, re, res_single, labels = res#self.test_dude_target(target, model)
+
             auc_list.append(auc)
             bedroc_list.append(bedroc)
             for key in ef:
@@ -1329,9 +1333,16 @@ class DrugCLIP(UnicoreTask):
         for key in re_list:
             print("re", key, "mean",  np.mean(re_list[key]))
 
-        # save printed results 
+        # save printed results to csv
         
+        targets = targets
+        ef = ef_list["0.01"]
 
+        # save to csv
+        import pandas as pd
+        df = pd.DataFrame({"target": targets, "ef": ef})
+        df.to_csv("Holo_RealPocket_GenPack.csv", index=False)
+            
         
         
         return
@@ -1627,20 +1638,24 @@ class DrugCLIP(UnicoreTask):
 
 
 
-    def retrieval_multi_folds(self, model, pocket_path, save_path, n_folds=6, use_cuda=True, use_cache=True, **kwargs):
+    def retrieval_multi_folds(self, model, pocket_path, save_path, mol_data_path, fold_version, use_cache=True, use_cuda=True, **kwargs):
         
 
-        if n_folds==6:
+        if fold_version=="6_folds":
             # 6 folds
             ckpts = [f"./data/model_weights/6_folds/fold_{i}.pt" for i in range(6)]
 
             caches = [f"./data/encoded_mol_embs/6_folds/fold{i}.pkl" for i in range(6)]
         
-        elif n_folds==8:
+        elif fold_version=="8_folds":
 
             ckpts = [f"./data/model_weights/8_folds/fold_{i}.pt" for i in range(8)]
 
             caches = [f"./data/encoded_mol_embs/8_folds/fold{i}.pkl" for i in range(8)]
+        elif fold_version=="6_folds_filtered":
+            ckpts = [f"./data/model_weights/6_folds/fold_{i}.pt" for i in range(6)]
+
+            caches = [f"./data/encoded_mol_embs/6_folds_filtered/fold{i}.pkl" for i in range(6)]
 
 
         res_list = []
@@ -1649,24 +1664,17 @@ class DrugCLIP(UnicoreTask):
 
 
         for fold, ckpt in enumerate(ckpts):
+            state = checkpoint_utils.load_checkpoint_to_cpu(ckpt)
+            model.load_state_dict(state["model"], strict=False)
 
-            
-            
             # generate mol data
 
             mol_cache_path=caches[fold]
             if use_cache:
                 with open(mol_cache_path, "rb") as f:
                     mol_reps, mol_names = pickle.load(f)
-            else:
-                state = checkpoint_utils.load_checkpoint_to_cpu(ckpt)
-                model.load_state_dict(state["model"], strict=False)
+            else:            
 
-                
-                mol_data_path = "/drug/DrugCLIP_chemdata_v2024/DrugCLIP_mols_v2024.lmdb"
-                mol_data_path = "/drug/encoding_mols/chemdiv_1640k.lmdb"
-
-                
                 
                 mol_dataset = self.load_mols_dataset(mol_data_path, "atoms", "coordinates")
                 num_data = len(mol_dataset)
@@ -1741,10 +1749,14 @@ class DrugCLIP(UnicoreTask):
 
             res_list.append(pocket_reps @ mol_reps.T)
 
+
+
         res_new = np.array(res_list)
+
+        print(res_new.shape)
         res_new = np.mean(res_new, axis=0)
 
-        if n_folds==6:
+        if fold_version.startswith("6_folds"):
             medians = np.median(res_new, axis=1, keepdims=True)
             # get mad for each row
             mads = np.median(np.abs(res_new - medians), axis=1, keepdims=True)
@@ -1761,7 +1773,7 @@ class DrugCLIP(UnicoreTask):
 
         # get top 1%
 
-        lis = lis[:int(len(lis) * 1.00)]
+        lis = lis[:int(len(lis) * 0.02)]
 
         
         res_path = save_path
