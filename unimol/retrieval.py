@@ -62,7 +62,8 @@ def main(args):
     
     #names, scores = task.retrieve_mols(model, args.mol_path, args.pocket_path, args.emb_dir, 10000)
 
-    task.retrieval_multi_folds(model, args.pocket_path, args.save_path, args.mol_path, fold_version=args.fold_version, use_cache=args.use_cache, use_cuda=use_cuda)
+    task.retrieval_multi_folds(model, args.pocket_path, args.save_path, args.mol_path, fold_version=args.fold_version, 
+                               use_cache=args.use_cache.lower() == "true", use_cuda=use_cuda)
 
 
 def cli_main():
