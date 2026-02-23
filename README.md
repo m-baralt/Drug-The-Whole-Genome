@@ -11,120 +11,13 @@ Installation instructions are available in the parent repository
 
 ## High-level original pipeline
 
-[Open detailed documentation](https://m-baralt.github.io/Drug-The-Whole-Genome/pipeline.html)
+A detailed description of DrugCLIP original virtual screening pipeline can be seen [here!](https://m-baralt.github.io/Drug-The-Whole-Genome/pipeline.html)
 
 ![Preview diagram](docs/pipeline.svg)
 
-# Scripts
-
-## retrieval.sh
-Bash script for virtual screening with DrugCLIP:
-1. Calls [`retrieval.py`](#retrievalpy) to run the workflow.
-2. Accepts command-line arguments (CLI) for customization.
-3. Sets the task to drugclip.
-4. If --use-cache=true, it loads pre-computed molecular embeddings.
-5. If --use-cache=false, it generates new molecular embeddings from scratch.
-6. When --use-cache=false, an LMDB file containing molecule information must be provided via the --MOL_PATH argument.
-
-## retrieval.py {#retrievalpy}
-Responsibilities:
-1. Parse command-line arguments (CLI).
-2. Set up the task using UniCore.  
-   - If `task=drugclip`, `unimol/tasks/drugclip.py` is invoked, and the [`DrugCLIP class`](#drugclip-class) is initialized.
-3. Build the model corresponding to the specified architecture using the [`build_model`](#build_model) method from **DrugCLIP class**
-4. Call `retrieval_multi_folds` to execute the virtual screening pipeline.
-
-# Classes
-
-## DrugCLIP class {#drugclipclass}
-
-Class for `task="drugclip"`.
-
-### Important Methods
-
-#### `build_model()`
-- Calls `unicore.models.build_model`.
-- If `arch="drugclip"`, `unimol/models/drugclip.py` is invoked.  
-- The [`BindingAffinityModel`](#bindingaffinitymodel) class is initialized, and its `build_model` method is called.
-
-#### `retrieval_multi_folds`
-
-This function orchestrates the multi-fold virtual screening process and manages caching of molecular and pocket embeddings. By default, it loops over 6 folds.
-
-1. **Load checkpoint weights:**  
-   - For each fold, the saved checkpoint weights are loaded into the pre-initialized model.
-
-2. **Load or compute molecular embeddings:**  
-   - If `use-cache=True`, precomputed molecular embeddings are loaded for the current fold.  
-   - If `use-cache=False`:  
-     1. [`load_mols_dataset`](#load_mols_dataset) reads the LMDB file containing molecular data.  
-     2. A PyTorch `DataLoader` is created.  
-     3. A batch loop is executed:  
-        1. Prepare the model input: extract distances, edge types, and tokens for each sample; embed tokens with `model.mol_model.embed_tokens`.  
-        2. Fuse and project distance and edge information for graph attention.  
-        3. Apply `model.mol_model.encoder` to compute molecular representations.  
-        4. Extract the `[CLS]` token embedding, project to lower-dimensional space using `mol_project`, and normalize to unit length.  
-        5. Append embeddings to a list `mol_reps`. After all batches, convert `mol_reps` into a matrix of shape `(num_samples x embedding_size)`.  
-        6. Save the molecular embeddings to cache.
-
-3. **Load or compute pocket embeddings:**  
-   1. `load_pockets_dataset` reads the LMDB file containing pocket data.  
-   2. A PyTorch `DataLoader` is created.  
-   3. A batch loop is executed:  
-      1. Prepare the model input: extract distances, edge types, and tokens; embed tokens using `model.pocket_model.embed_tokens`.  
-      2. Fuse and project distance and edge information for graph attention.  
-      3. Apply `model.pocket_model.encoder` to compute pocket representations.  
-      4. Extract the `[CLS]` token embedding, project to lower-dimensional space using `pocket_project`, and normalize to unit length.  
-      5. Append embeddings to a list `pocket_reps`. After all batches, convert `pocket_reps` into a matrix of shape `(num_samples x embedding_size)`.
-
-4. **Compute similarity matrices:**  
-   - Multiply the `pocket_reps` matrix with the transpose of the `mol_reps` matrix to compute cosine similarities.
-
-5. **Aggregate results across folds:**  
-   - Average the similarity matrices from all folds.  
-   - Apply an adjusted robust z-score normalization.  
-   - For each pocket, select the maximum score across molecules (assuming different pockets correspond to different conformations of the same pocket).
-
-6. **Save results:**  
-   - Save the final scores and corresponding SMILES strings to a `.txt` file.
-
-#### load_mols_dataset()
-
-1. Initializes the `LMDBDataset` class, which reads LMDB files and returns all data for a single molecule when accessed by index (`dataset[idx]`).
-2. Wraps it in the `AffinityMolDataset` class, which prepares and organizes the molecule data into a structured dictionary format.
-3. Applies the `RemoveHydrogenDataset` class to remove hydrogen atoms from the molecule representation.
-4. Uses the `NormalizeDataset` class to center the 3D coordinates of the atoms.
-5. Extracts atom information, tokenizes it, and prepends (`BOS`) and appends (`EOS`) special tokens.
-6. Generates unique identifiers for each edge between atoms using the `EdgeTypeDataset` class.
-7. Computes pairwise distances between atoms using the `DistanceDataset` class.
-8. Combines all the processed information into a single `NestedDictionaryDataset` object, ready for model input.
-
-#### `load_pockets_dataset()`
-
-Follows the same processing steps as `load_mols_dataset()`, but after step 3 it **crops the pocket sequence** if it contains more than a specified maximum number of atoms (default: 256).
-
-## BindingAffinityModel
-
-This class implements the DrugCLIP architecture for binding affinity prediction.  
-
-- Uses the defined `drugclip_architecture` to set up the model configuration.  
-- Initializes:
-  - A **molecular model** using the Uni-Mol architecture (`UniMolModel` class).  
-  - A **pocket model** using the Uni-Mol architecture (`UniMolModel` class).  
-- The `build_model` method creates and returns an instance of the model.
-
-# Concepts
-
-## Edge Types
-Unique IDs representing atom-type pairs
-
-## Gaussian Basis Features
-Encodes geometry into attention bias
-
-## Cosine Similarity Retrieval
-Unit-normalized embeddings → dot product
-
 # Applied changes
+
+The following changes have been made to adapt DrugCLIP virtual screening for larger molecular databases.
 
 - `retrieval.sh` now calls `run_retrieval.py`, a safe wrapper around `retrieval.py` for **PyTorch ≥ 2.6**.  
   This wrapper ensures that required globals are registered for unpickling checkpoints generated with **PyTorch < 2.6**, and forwards all command-line arguments to `retrieval.py`.
