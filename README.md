@@ -7,7 +7,7 @@ This documentation mainly aims to understand the structure of DrugCLIP and detai
 
 ## Installation
 
-Installation instructions are available in the parent repository 
+Installation instructions are available in the [parent repository](https://github.com/m-baralt/TCruzi_pipeline).
 
 ## High-level original pipeline
 
