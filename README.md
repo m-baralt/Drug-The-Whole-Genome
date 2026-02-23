@@ -11,7 +11,7 @@ Installation instructions are available in the parent repository
 
 ## High-level original pipeline
 
-[Open interactive diagram](docs/pipeline.html)
+[Open interactive diagram](docs/pipeline_wrapper.html)
 
 ![Preview diagram](docs/pipeline.svg)
 
