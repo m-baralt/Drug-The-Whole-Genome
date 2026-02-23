@@ -16,7 +16,7 @@ Installation instructions are available in the parent repository
 
 # Scripts
 
-## retrieval.sh
+## retrieval.sh {#retrievalsh}
 Bash script for virtual screening with DrugCLIP:
 1. Calls [`retrieval.py`](#retrievalpy) to run the workflow.
 2. Accepts command-line arguments (CLI) for customization.
