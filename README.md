@@ -13,7 +13,7 @@ Installation instructions are available in the parent repository
 
 [Open interactive diagram](docs/pipeline.html)
 
-![Preview diagram](docs/DrugCLIP_pipeline.svg)
+![Preview diagram](docs/pipeline.svg)
 
 # Scripts
 
