@@ -11,7 +11,7 @@ Installation instructions are available in the parent repository
 
 ## High-level original pipeline
 
-[Open interactive diagram](docs/pipeline_wrapper.html)
+[Open detailed documentation](https://m-baralt.github.io/Drug-The-Whole-Genome/pipeline.html)
 
 ![Preview diagram](docs/pipeline.svg)
 
