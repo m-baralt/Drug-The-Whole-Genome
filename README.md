@@ -45,3 +45,7 @@ The following changes have been made to adapt DrugCLIP virtual screening for lar
   - and returns raw cosine similarity scores, leaving any aggregation or normalization strategy to downstream analysis.
 
 Returned scores correspond to cosine similarity between unit-vector normalized pocket and molecule embeddings. New thresholds to define affinity need to be defined. 
+
+A scheme of the modified pipeline is shown below:
+
+![Modified pipeline](docs/drugclip_modified.svg)
