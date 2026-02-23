@@ -11,7 +11,7 @@ Installation instructions are available in the parent repository
 
 ## High-level original pipeline
 
-![DrugCLIP original pipeline](drug-the-whole-genome.drawio.html)
+![DrugCLIP original pipeline](DrugCLIP_pipeline.svg)
 
 # Scripts
 
