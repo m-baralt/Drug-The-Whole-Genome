@@ -10,25 +10,35 @@ data-mxgraph="{&quot;highlight&quot;:&quot;#0000ff&quot;,&quot;nav&quot;:true,&q
 <script type="text/javascript" src="https://viewer.diagrams.net/js/viewer-static.min.js"></script>
 <h1 id="scripts">Scripts</h1>
 <h2 id="retrievalsh">retrieval.sh</h2>
-<p>Bash script for virtual screening with DrugCLIP: 1. Calls <a
-href="#retrievalpy"><code>retrieval.py</code></a> to run the workflow.
-2. Accepts command-line arguments (CLI) for customization. 3. Sets the
-task to drugclip. 4. If –use-cache=true, it loads pre-computed molecular
-embeddings. 5. If –use-cache=false, it generates new molecular
-embeddings from scratch. 6. When –use-cache=false, an LMDB file
-containing molecule information must be provided via the –MOL_PATH
-argument.</p>
+<p>Bash script for virtual screening with DrugCLIP:</p>
+<ol type="1">
+<li>Calls <a href="#retrievalpy"><code>retrieval.py</code></a> to run
+the workflow.</li>
+<li>Accepts command-line arguments (CLI) for customization.</li>
+<li>Sets the task to drugclip.</li>
+<li>If –use-cache=true, it loads pre-computed molecular embeddings.</li>
+<li>If –use-cache=false, it generates new molecular embeddings from
+scratch.</li>
+<li>When –use-cache=false, an LMDB file containing molecule information
+must be provided via the –MOL_PATH argument.</li>
+</ol>
 <h2 id="retrievalpy">retrieval.py</h2>
-<p>Responsibilities: 1. Parse command-line arguments (CLI). 2. Set up
-the task using UniCore.<br />
-- If <code>task=drugclip</code>, <code>unimol/tasks/drugclip.py</code>
+<p>Responsibilities:</p>
+<ol type="1">
+<li>Parse command-line arguments (CLI).</li>
+<li>Set up the task using UniCore.
+<ul>
+<li>If <code>task=drugclip</code>, <code>unimol/tasks/drugclip.py</code>
 is invoked, and the <a
-href="#drugclipclass"><code>DrugCLIP class</code></a> is initialized. 3.
-Build the model corresponding to the specified architecture using the <a
-href="#buildmodel"><code>build_model</code></a> method from
-<strong>DrugCLIP class</strong> 4. Call
-<code>retrieval_multi_folds</code> to execute the virtual screening
-pipeline.</p>
+href="#drugclipclass"><code>DrugCLIP class</code></a> is
+initialized.</li>
+</ul></li>
+<li>Build the model corresponding to the specified architecture using
+the <a href="#buildmodel"><code>build_model</code></a> method from
+<strong>DrugCLIP class</strong></li>
+<li>Call <code>retrieval_multi_folds</code> to execute the virtual
+screening pipeline.</li>
+</ol>
 <h1 id="classes">Classes</h1>
 <h2 id="drugclipclass">DrugCLIP class</h2>
 <p>Class for <code>task="drugclip"</code>.</p>

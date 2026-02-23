@@ -9,6 +9,7 @@ The diagram of the original virtual screening pipeline in DrugCLIP is shown belo
 
 ## retrieval.sh {#retrievalsh}
 Bash script for virtual screening with DrugCLIP:
+
 1. Calls [`retrieval.py`](#retrievalpy) to run the workflow.
 2. Accepts command-line arguments (CLI) for customization.
 3. Sets the task to drugclip.
@@ -18,9 +19,10 @@ Bash script for virtual screening with DrugCLIP:
 
 ## retrieval.py {#retrievalpy}
 Responsibilities:
+
 1. Parse command-line arguments (CLI).
 2. Set up the task using UniCore.  
-   - If `task=drugclip`, `unimol/tasks/drugclip.py` is invoked, and the [`DrugCLIP class`](#drugclipclass) is initialized.
+   -  If `task=drugclip`, `unimol/tasks/drugclip.py` is invoked, and the [`DrugCLIP class`](#drugclipclass) is initialized.
 3. Build the model corresponding to the specified architecture using the [`build_model`](#buildmodel) method from **DrugCLIP class**
 4. Call `retrieval_multi_folds` to execute the virtual screening pipeline.
 
