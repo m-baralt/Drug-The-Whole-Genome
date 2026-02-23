@@ -116,8 +116,8 @@ def cal_metrics(y_true, y_score, alpha):
 
 
 
-@register_task("drugclip")
-class DrugCLIP(UnicoreTask):
+@register_task("drugclip-new")
+class DrugCLIPnew(UnicoreTask):
     """Task for training transformer auto-encoder models."""
 
     @staticmethod
@@ -1721,7 +1721,7 @@ class DrugCLIP(UnicoreTask):
             caches = [f"./data/encoded_mol_embs/6_folds_filtered/fold{i}.pkl" for i in range(6)]
 
 
-        res_list = []
+        mol_scores = {}
 
         pocket_data_path = pocket_path
 
@@ -1729,53 +1729,6 @@ class DrugCLIP(UnicoreTask):
         for fold, ckpt in enumerate(ckpts):
             state = checkpoint_utils.load_checkpoint_to_cpu(ckpt)
             model.load_state_dict(state["model"], strict=False)
-
-            # generate mol data
-
-            mol_cache_path=caches[fold]
-            if use_cache:
-                with open(mol_cache_path, "rb") as f:
-                    mol_reps, mol_names = pickle.load(f)
-            else:            
-
-                
-                mol_dataset = self.load_mols_dataset(mol_data_path, "atoms", "coordinates")
-                num_data = len(mol_dataset)
-                bsz=64
-                mol_reps = []
-                mol_names = []
-                labels = []
-                mol_ids_subsets = []
-                mol_data = torch.utils.data.DataLoader(mol_dataset, batch_size=bsz, collate_fn=mol_dataset.collater)
-                print(f'Length molecular dataset: {len(mol_dataset)} and batch size: {bsz}')
-                for _, sample in enumerate(tqdm(mol_data)):
-                    if use_cuda:
-                        sample = unicore.utils.move_to_cuda(sample)
-                    dist = sample["net_input"]["mol_src_distance"]
-                    et = sample["net_input"]["mol_src_edge_type"]
-                    st = sample["net_input"]["mol_src_tokens"]
-                    mol_padding_mask = st.eq(model.mol_model.padding_idx)
-                    mol_x = model.mol_model.embed_tokens(st)
-                    n_node = dist.size(-1)
-                    gbf_feature = model.mol_model.gbf(dist, et)
-                    gbf_result = model.mol_model.gbf_proj(gbf_feature)
-                    graph_attn_bias = gbf_result
-                    graph_attn_bias = graph_attn_bias.permute(0, 3, 1, 2).contiguous()
-                    graph_attn_bias = graph_attn_bias.view(-1, n_node, n_node)
-                    mol_outputs = model.mol_model.encoder(
-                        mol_x, padding_mask=mol_padding_mask, attn_mask=graph_attn_bias
-                    )
-                    mol_encoder_rep = mol_outputs[0][:,0,:]
-                    mol_emb = model.mol_project(mol_encoder_rep)
-                    mol_emb = mol_emb / mol_emb.norm(dim=-1, keepdim=True)
-                    mol_emb = mol_emb.detach().cpu().numpy()
-                    mol_reps.append(mol_emb)
-                    mol_names.extend(sample["smi_name"])
-                mol_reps = np.concatenate(mol_reps, axis=0)
-                with open(mol_cache_path, "wb") as f:
-                    pickle.dump([mol_reps, mol_ids_subsets], f)
-
-            
 
             # generate pocket data
             pocket_dataset = self.load_pockets_dataset(pocket_data_path)
@@ -1805,45 +1758,69 @@ class DrugCLIP(UnicoreTask):
                 pocket_emb = pocket_emb / pocket_emb.norm(dim=-1, keepdim=True)
                 pocket_emb = pocket_emb.detach().cpu().numpy()
                 pocket_reps.append(pocket_emb)
-            print(len(pocket_reps))
+            
             pocket_reps = np.concatenate(pocket_reps, axis=0)
-            # change reps to fp32
-            mol_reps = mol_reps.astype(np.float32)
             pocket_reps = pocket_reps.astype(np.float32)
 
-            res_list.append(pocket_reps @ mol_reps.T)
-
-
-
-        res_new = np.array(res_list)
-
-        print(res_new.shape)
-        res_new = np.mean(res_new, axis=0)
-
-        if fold_version.startswith("6_folds"):
-            medians = np.median(res_new, axis=1, keepdims=True)
-            # get mad for each row
-            mads = np.median(np.abs(res_new - medians), axis=1, keepdims=True)
-            # get z score
-            res_new = 0.6745 * (res_new - medians) / (mads + 1e-6)
-
-        res_max = np.max(res_new, axis=0)
-        ret_names = mol_names
-
-        lis = []
-        for i, score in enumerate(res_max):
-            lis.append((score, ret_names[i]))
-        lis.sort(key=lambda x:x[0], reverse=True)
-
-        # get top 1%
-
-        lis = lis[:int(len(lis) * 0.02)]
+            # generate mol data
+            mol_cache_path=caches[fold]
+            if use_cache:
+                with open(mol_cache_path, "rb") as f:
+                    mol_reps, mol_names = pickle.load(f)
+                mol_reps = mol_reps.astype(np.float32)
+                sim = pocket_reps @ mol_reps.T
+                for j, name in enumerate(mol_names):
+                    if name not in mol_scores:
+                        mol_scores[name] = np.zeros(sim.shape[0], dtype=np.float32)
+                    mol_scores[name] += sim[:, j]
+                    
+            else:                            
+                mol_dataset = self.load_mols_dataset(mol_data_path, "atoms", "coordinates")
+                #num_data = len(mol_dataset)
+                bsz=64
+                
+                mol_data = torch.utils.data.DataLoader(mol_dataset, batch_size=bsz, collate_fn=mol_dataset.collater)
+                for _, sample in enumerate(tqdm(mol_data)):
+                    if use_cuda:
+                        sample = unicore.utils.move_to_cuda(sample)
+                    dist = sample["net_input"]["mol_src_distance"]
+                    et = sample["net_input"]["mol_src_edge_type"]
+                    st = sample["net_input"]["mol_src_tokens"]
+                    mol_padding_mask = st.eq(model.mol_model.padding_idx)
+                    mol_x = model.mol_model.embed_tokens(st)
+                    n_node = dist.size(-1)
+                    gbf_feature = model.mol_model.gbf(dist, et)
+                    gbf_result = model.mol_model.gbf_proj(gbf_feature)
+                    graph_attn_bias = gbf_result
+                    graph_attn_bias = graph_attn_bias.permute(0, 3, 1, 2).contiguous()
+                    graph_attn_bias = graph_attn_bias.view(-1, n_node, n_node)
+                    mol_outputs = model.mol_model.encoder(
+                        mol_x, padding_mask=mol_padding_mask, attn_mask=graph_attn_bias
+                    )
+                    mol_encoder_rep = mol_outputs[0][:,0,:]
+                    mol_emb = model.mol_project(mol_encoder_rep)
+                    mol_emb = mol_emb / mol_emb.norm(dim=-1, keepdim=True)
+                    mol_emb = mol_emb.detach().cpu().numpy() # dimension is (batch size, embedding size)
+                    mol_emb = mol_emb.astype(np.float32)
+                    mol_names = sample["smi_name"]
+                    sim = pocket_reps @ mol_emb.T # dimension is (num pocket, batch size)
+                    for j, name in enumerate(mol_names):
+                        if name not in mol_scores:
+                            mol_scores[name] = np.zeros(sim.shape[0], dtype=np.float32)
+                        mol_scores[name] += sim[:, j]
 
         
-        res_path = save_path
-        with open(res_path, "w") as f:
-            for score, name in lis:
-                f.write(f"{name},{score}\n")
+        results = []
+        for name, pocket_scores in mol_scores.items():
+            mean_scores = pocket_scores / len(ckpts)   # (Pocket,)
+            results.append((name, mean_scores))
+        
+        results.sort(key=lambda x: x[1], reverse=True) # sort by the first pocket score
+
+        with open(save_path, "w") as f:
+            for name, mean_scores in results:
+                pocket_str = ",".join(map(str, mean_scores))
+                f.write(f"{name},{pocket_str}\n")
 
         return
         
