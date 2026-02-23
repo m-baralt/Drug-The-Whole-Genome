@@ -11,7 +11,9 @@ Installation instructions are available in the parent repository
 
 ## High-level original pipeline
 
-![DrugCLIP original pipeline](DrugCLIP_pipeline.svg)
+[Open interactive diagram](docs/pipeline.html)
+
+![Preview diagram](docs/DrugCLIP_pipeline.svg)
 
 # Scripts
 
