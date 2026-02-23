@@ -10,7 +10,7 @@ cd "$SCRIPT_DIR"
 
 echo "First argument: $1"
 
-MOL_PATH="/home/mabarr/mols.lmdb" # "/home/mabarr/TCruzi_pipeline/test/chembl_smiles.lmdb"
+MOL_PATH="/home/mabarr/TCruzi_pipeline/test/chembl_smiles.lmdb" # "/home/mabarr/TCruzi_pipeline/test/chembl_smiles.lmdb"
 POCKET_PATH="/home/mabarr/Drug-The-Whole-Genome/data/pocket/8OZZ.lmdb"  #"/home/mabarr/TCruzi_pipeline/test/8OZZ.lmdb" 
 FOLD_VERSION=6_folds
 use_cache=False
