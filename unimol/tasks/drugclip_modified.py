@@ -1722,6 +1722,7 @@ class DrugCLIPnew(UnicoreTask):
 
 
         mol_scores = {}
+        mol_counts = {}
 
         pocket_data_path = pocket_path
 
@@ -1772,8 +1773,10 @@ class DrugCLIPnew(UnicoreTask):
                 for j, name in enumerate(mol_names):
                     if name not in mol_scores:
                         mol_scores[name] = np.zeros(sim.shape[0], dtype=np.float32)
+                        mol_counts[name] = 0
                     mol_scores[name] += sim[:, j]
-                    
+                    mol_counts[name] += 1
+
             else:                            
                 mol_dataset = self.load_mols_dataset(mol_data_path, "atoms", "coordinates")
                 #num_data = len(mol_dataset)
@@ -1807,12 +1810,14 @@ class DrugCLIPnew(UnicoreTask):
                     for j, name in enumerate(mol_names):
                         if name not in mol_scores:
                             mol_scores[name] = np.zeros(sim.shape[0], dtype=np.float32)
+                            mol_counts[name] = 0
                         mol_scores[name] += sim[:, j]
+                        mol_counts[name] += 1
 
-        
         results = []
-        for name, pocket_scores in mol_scores.items():
-            mean_scores = pocket_scores / len(ckpts)   # (Pocket,)
+
+        for name in mol_scores:
+            mean_scores = mol_scores[name] / (mol_counts[name]*len(ckpts))
             results.append((name, mean_scores))
         
         results.sort(key=lambda x: x[1], reverse=True) # sort by the first pocket score
