@@ -116,7 +116,7 @@ def cal_metrics(y_true, y_score, alpha):
 
 
 
-@register_task("drugclip-new2")
+@register_task("drugclip-new")
 class DrugCLIPnew2(UnicoreTask):
     """Task for training transformer auto-encoder models."""
 
