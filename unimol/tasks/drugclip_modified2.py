@@ -117,7 +117,7 @@ def cal_metrics(y_true, y_score, alpha):
 
 
 @register_task("drugclip-new2")
-class DrugCLIPnew(UnicoreTask):
+class DrugCLIPnew2(UnicoreTask):
     """Task for training transformer auto-encoder models."""
 
     @staticmethod
@@ -1819,18 +1819,25 @@ class DrugCLIPnew(UnicoreTask):
                         if sample.get("target") is not None:
                             mol_labels[name] = sample["target"][j].detach().cpu().item()
 
+        matrix_scores = np.stack(list(mol_scores.values()), axis=0) # dimension is (num mol, num pocket)
+        matrix_scores = matrix_scores/np.array(list(mol_counts.values()))[:, None] # average the scores for each mol
+        medians = np.median(matrix_scores, axis=0, keepdims=True) # get median for each pocket
+        mads = np.median(np.abs(matrix_scores - medians), axis=0, keepdims=True) # get mad for each pocket
+        
         results = []
 
         for name in mol_scores:
-            mean_scores = mol_scores[name] / (mol_counts[name])
-            results.append((name, mean_scores, mol_labels.get(name, None)))
+            cosine_similarity = mol_scores[name] / (mol_counts[name])
+            mean_scores = 0.6745 * (cosine_similarity-medians.squeeze(0)) / (mads.squeeze(0) + 1e-6)
+            results.append((name, cosine_similarity, mean_scores, mol_labels.get(name, None)))
         
-        results.sort(key=lambda x: x[1], reverse=True) # sort by the first pocket score
+        results.sort(key=lambda x: x[1][0], reverse=True) # sort by the first pocket score
 
         with open(save_path, "w") as f:
-            for name, mean_scores, label in results:
+            for name, cosine_similarity, mean_scores, label in results:
                 pocket_str = ",".join(map(str, mean_scores))
-                f.write(f"{name},{pocket_str},{label}\n")
+                cos_str = ",".join(map(str, cosine_similarity))
+                f.write(f"{name},{cos_str},{pocket_str},{label}\n")
 
         return
         

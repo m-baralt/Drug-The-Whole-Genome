@@ -10,18 +10,17 @@ cd "$SCRIPT_DIR"
 
 echo "First argument: $1"
 
-MOL_PATH="/home/mabarr/TCruzi_pipeline/test/chembl_smiles.lmdb" # "/home/mabarr/TCruzi_pipeline/test/chembl_smiles.lmdb"
-POCKET_PATH="/home/mabarr/Drug-The-Whole-Genome/data/pocket/8OZZ.lmdb"  #"/home/mabarr/TCruzi_pipeline/test/8OZZ.lmdb" 
+MOL_PATH="mols.lmdb" # If use_cache=False, please set this to the path of the screening library in lmdb format.
+POCKET_PATH="pocket.lmdb" # please set this to the path of the pocket(s) in lmdb format.
 FOLD_VERSION=6_folds
 use_cache=False
-save_path="NET.txt"
+save_path="result.txt"
 
 
 CUDA_VISIBLE_DEVICES="1" python ./unimol/run_retrieval.py --user-dir ./unimol $data_path "./dict" --valid-subset test \
-       --num-workers 8 --ddp-backend=c10d --batch-size 4 \
+       --num-workers 40 --ddp-backend=c10d --batch-size 4 \
        --task drugclip-new --loss in_batch_softmax --arch drugclip  \
        --max-pocket-atoms 511 \
-       --cpu \
        --fp16 --fp16-init-scale 4 --fp16-scale-window 256  --seed 1 \
        --log-interval 100 --log-format simple \
        --mol-path $MOL_PATH \
