@@ -34,6 +34,7 @@ The following changes have been made to adapt DrugCLIP virtual screening for lar
 
 **Key modifications:**
 - Pocket embeddings are computed first and stored in `pocket_reps`.
+- The pocket data loader batch size was reduced to 1 to prevent GPU out-of-memory errors during inference.
 - Molecule embeddings are processed batch-wise. Instead of storing all molecular embeddings in a large matrix of shape __(number_of_molecules × embedding_dim)__, similarity scores between pocket and molecule embeddings are computed on-the-fly for each batch.
 - Similarity scores are accumulated in a dictionary keyed by molecule SMILES. This ensures correct alignment between molecules and their scores across folds without requiring full similarity matrices in memory.
 - SMILES counts are accumulated in a dictionary in order to take into account duplicated SMILES when averaging.
