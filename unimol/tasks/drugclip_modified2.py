@@ -1791,7 +1791,7 @@ class DrugCLIPnew2(UnicoreTask):
                     et = sample["net_input"]["mol_src_edge_type"]
                     st = sample["net_input"]["mol_src_tokens"]
                     mol_padding_mask = st.eq(model.mol_model.padding_idx)
-                    print(st.shape)
+                    
                     mol_x = model.mol_model.embed_tokens(st)
                     n_node = dist.size(-1)
                     gbf_feature = model.mol_model.gbf(dist, et)
