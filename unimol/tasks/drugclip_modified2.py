@@ -1734,7 +1734,7 @@ class DrugCLIPnew2(UnicoreTask):
 
             # generate pocket data
             pocket_dataset = self.load_pockets_dataset(pocket_data_path)
-            pocket_data = torch.utils.data.DataLoader(pocket_dataset, batch_size=16, collate_fn=pocket_dataset.collater)
+            pocket_data = torch.utils.data.DataLoader(pocket_dataset, batch_size=1, collate_fn=pocket_dataset.collater)
             pocket_reps = []
 
             for _, sample in enumerate(tqdm(pocket_data)):
@@ -1761,7 +1761,7 @@ class DrugCLIPnew2(UnicoreTask):
                 pocket_emb = pocket_emb.detach().cpu().numpy()
                 pocket_reps.append(pocket_emb)
             
-            pocket_reps = np.concatenate(pocket_reps, axis=0)
+            pocket_reps = np.concatenate(pocket_reps, axis=0) # dimension is (num pocket, embedding size)
             pocket_reps = pocket_reps.astype(np.float32)
 
             # generate mol data
@@ -1791,6 +1791,7 @@ class DrugCLIPnew2(UnicoreTask):
                     et = sample["net_input"]["mol_src_edge_type"]
                     st = sample["net_input"]["mol_src_tokens"]
                     mol_padding_mask = st.eq(model.mol_model.padding_idx)
+                    print(st.shape)
                     mol_x = model.mol_model.embed_tokens(st)
                     n_node = dist.size(-1)
                     gbf_feature = model.mol_model.gbf(dist, et)
@@ -1834,11 +1835,15 @@ class DrugCLIPnew2(UnicoreTask):
         results.sort(key=lambda x: x[1][0], reverse=True) # sort by the first pocket score
 
         with open(save_path, "w") as f:
+            n_pockets = pocket_reps.shape[0]
+            cos_headers = [f"cosine_pocket{i}" for i in range(n_pockets)]
+            med_headers = [f"normalized_pocket{i}" for i in range(n_pockets)]
+            f.write("name," + ",".join(cos_headers + med_headers) + ",label\n")
             for name, cosine_similarity, mean_scores, label in results:
-                pocket_str = ",".join(map(str, mean_scores))
-                cos_str = ",".join(map(str, cosine_similarity))
-                f.write(f"{name},{cos_str},{pocket_str},{label}\n")
-
+                cos_str = ",".join(f"{x:.6f}" for x in cosine_similarity)
+                mean_str = ",".join(f"{x:.6f}" for x in mean_scores)
+                f.write(f"{name},{cos_str},{mean_str},{label}\n")
+                
         return
         
 
