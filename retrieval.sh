@@ -4,20 +4,23 @@
 # This is default for all the wet-lab experiment targets.
 # Else, please set the MOL_PATH to a lmdb path as the screening library.
 
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )" 
 cd "$SCRIPT_DIR"
 
+PROJECT_ROOT="$( cd "$SCRIPT_DIR/../.." && pwd )"
 
 echo "First argument: $1"
 
-MOL_PATH="mols.lmdb" # If use_cache=False, please set this to the path of the screening library in lmdb format.
-POCKET_PATH="pocket.lmdb" # please set this to the path of the pocket(s) in lmdb format.
+MOL_PATH="$PROJECT_ROOT/test/test_mols.lmdb" # If use_cache=False, please set this to the path of the screening library in lmdb format.
+POCKET_PATH="$PROJECT_ROOT/test/test_pocket.lmdb" # please set this to the path of the pocket(s) in lmdb format.
 FOLD_VERSION=6_folds
 use_cache=False
-save_path="result.txt"
+save_path="$PROJECT_ROOT/result.txt"
 
 
-CUDA_VISIBLE_DEVICES="1" python ./unimol/run_retrieval.py --user-dir ./unimol $data_path "./dict" --valid-subset test \
+CUDA_VISIBLE_DEVICES="0" python ./unimol/run_retrieval.py \
+       --user-dir ./unimol \
+       $data_path "./dict" --valid-subset test \
        --num-workers 40 --ddp-backend=c10d --batch-size 4 \
        --task drugclip-new --loss in_batch_softmax --arch drugclip  \
        --max-pocket-atoms 511 \
